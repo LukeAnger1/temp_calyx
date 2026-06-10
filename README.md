@@ -19,5 +19,5 @@ This is the initial structre of the memory. Example here from the [docs](https:/
 
 The data is a 1d array that gets seperated into a 2d array by comb_mem_d2(). This provides compile time checking to make sure the data entries fall within the deinfed range from the width and is_signed (ie -1 fails)
 
-I set it up to have some random numbers for A and B (there is no checking on accuracy atm, I want to add in a python layer to check the output, kinda just manual atm). C doesnt matter because that is the write to location
+I set it up to have some random numbers for A and B (there is no checking on accuracy atm, I want to add in a python layer to check the output, kinda just manual atm, need to look into the .expect from repo). C doesnt matter because that is the write to location
 
