@@ -17,20 +17,27 @@ This is the initial structre of the memory. Example here from the [docs](https:/
 }
 ```
 
-The data is a 1d array that gets seperated into a 2d array by comb_mem_d2(). This provides compile time checking to make sure the data entries fall within the deinfed range from the width and is_signed (ie -1 fails)
+The code requires typing out the bit width for the address. I feel this can already be calculated from the address. Might look into assigning that automatically, setting up a MACRO type deal, or just switching to the high level language MrXML.
 
-I set it up to have some random numbers for A and B (there is no checking on accuracy atm, I want to add in a python layer to check the output, kinda just manual atm, need to look into the .expect from repo). C should not matter because it is the write location. I would need some code to init it to zero at the start or maybe just use accum and set it to zero.
+# Initial memory setup
 
-External keyword connects the declared memory to the memory made in the data.json
+I set it up to have some random numbers for A and B (there is no automatic checking on accuracy atm, the instructions said to setup with .expect, but manually checking it looks fine). C in this code matters to initially be set to zero. I dont have logic to reset it atm. That should be added in.
 
-Would have been cool to choose size values that are 2^n so that the counters reset automatically
+# Changes from bad mat mul to good mat mul
 
-Could check if register is never used, had acc that was not used
+In order to remove the dynamic handshake per the paper (as the operations have set execution length). I added a static to the outer most position in the control flow.
 
-Check if the multiplciation pipeline is used without break (ie the compiler is smart enough to always put in another value)
+From there the compile time issues pointed me to the next thing to make static.
 
-Enjoy the strict compile time check for bit sizes
+One important TODO is to make sure I have the correct static for the matrix multiplication
 
-Changes
-  Added in static to the outer loop and worked through issues
-  Made the init 1 cycle static
+# Things to try
+Would have been cool to choose size values that are 2^n so that the counters reset automatically to save some cycles
+
+Check if the multiplication pipeline is used without a break (ie the compiler is smart enough to always put another value into the pipeline)
+I think there was something in the docs to view the compilation. Will need to review.
+
+# Ou
+
+Enjoy the strict compile-time check for bit sizes in the calyx code AND in the data.json. Verilog always upset me on silently failing. This alone saved time by just not having to compile to test.
+
