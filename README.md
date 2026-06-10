@@ -30,3 +30,7 @@ Could check if register is never used, had acc that was not used
 Check if the multiplciation pipeline is used without break (ie the compiler is smart enough to always put in another value)
 
 Enjoy the strict compile time check for bit sizes
+
+Changes
+  Added in static to the outer loop and worked through issues
+  Made the init 1 cycle static
