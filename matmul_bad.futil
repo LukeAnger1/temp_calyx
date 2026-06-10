@@ -1,0 +1,168 @@
+// C = A * B
+
+import "primitives/core.futil";
+import "primitives/memories/comb.futil";
+import "primitives/binary_operators.futil";
+
+// High level pytohn design
+//  
+// for i in range(4):
+//   for j in range(4):
+//     for k in range(4):
+//       C[i][j] += A[i][k] * B[k][j]
+
+component main() -> () {
+  cells {
+    // The memory to multiply together
+    // 
+    // primitives/memories/comb.futil
+    // comb_mem_d2
+    //   WIDTH -> Size of the data (defined as 32 bit width in data.json)
+    //   D0_SIZE -> Number of entries for row (TODO: Make sure it is row)
+    //   D1_SIZE -> Number of entries for col
+    //   D0_IDX_SIZE -> Number of bits needed for row tracking (why not ceil(log2(x) + 1)?)
+    //   D1_IDX_SIZE -> Number of bits needed for col tracking
+    @external A = comb_mem_d2(32, 4, 4, 3, 3);
+    @external B = comb_mem_d2(32, 4, 4, 3, 3);
+    @external C = comb_mem_d2(32, 4, 4, 3, 3);
+
+    // Registers for the loop counters
+    // TODO: Look into clog2 like in verilog and macros in tutorial
+    i = std_reg(3);
+    j = std_reg(3);
+    k = std_reg(3);
+
+    // Register to hold the product
+    //   NOTE: Could try removing register to save product and comb add, but crit path prob too long
+    prod = std_reg(32);
+
+    // acc_add is adder for the elementwise C[i][j] + A[i][k] * B[k][j]
+    // i_add, j_add, k_add are the adders for the indices for looping
+    acc_add = std_add(32);
+    i_add = std_add(3);
+    j_add = std_add(3);
+    k_add = std_add(3);
+
+    // Comparators for loop conditions
+    i_lt = std_lt(3);
+    j_lt = std_lt(3);
+    k_lt = std_lt(3);
+
+    // Multiplier cell
+    mult = std_mult_pipe(32);
+  }
+
+  wires {
+    // Set to zero, needed for the loops
+    //   TODO: May want to add for the C matrix too
+    group init_i {
+      i.in = 3'd0;
+      i.write_en = 1'd1;
+      init_i[done] = i.done;
+    }
+    group init_j {
+      j.in = 3'd0;
+      j.write_en = 1'd1;
+      init_j[done] = j.done;
+    }
+    group init_k {
+      k.in = 3'd0;
+      k.write_en = 1'd1;
+      init_k[done] = k.done;
+    }
+
+
+    // A[i][k] * B[k][j]
+    group do_mult {
+      A.addr0 = i.out; // Addresses to get for A[i][k] and B[k][j]
+      A.addr1 = k.out;
+      B.addr0 = k.out;
+      B.addr1 = j.out;
+      mult.left = A.read_data; // The multiplication of the reads
+      mult.right = B.read_data;
+      mult.go = 1'd1; // IMPORTANT NOTE: Should probably add in a guard or something here, taking advantage of the static length of the multi to always just run, need to look into this
+      prod.in = mult.out;
+      prod.write_en = mult.done;
+      do_mult[done] = prod.done;
+    }
+
+    // The += part of C[i][j] += A[i][k] * B[k][j]
+    group add_to_c {
+      C.addr0 = i.out;
+      C.addr1 = j.out;
+      acc_add.left = C.read_data;
+      acc_add.right = prod.out;
+      C.write_data = acc_add.out;
+      C.write_en = 1'd1;
+      add_to_c[done] = C.done;
+    }
+
+    // incr code for loop counters
+    //   TODO: Look into a way to abstract this functionality, or just use MrXML
+    group incr_i {
+      i_add.left = i.out;
+      i_add.right = 3'd1;
+      i.in = i_add.out;
+      i.write_en = 1'd1;
+      incr_i[done] = i.done;
+    }
+
+    group incr_j {
+      j_add.left = j.out;
+      j_add.right = 3'd1;
+      j.in = j_add.out;
+      j.write_en = 1'd1;
+      incr_j[done] = j.done;
+    }
+
+    group incr_k {
+      k_add.left = k.out;
+      k_add.right = 3'd1;
+      k.in = k_add.out;
+      k.write_en = 1'd1;
+      incr_k[done] = k.done;
+    }
+
+    // conditionals for loop bounds
+    //   TODO: Check why the while loop actually needs these conditionals
+    comb group cond_i { i_lt.left = i.out; i_lt.right = 3'd4; }
+    comb group cond_j { j_lt.left = j.out; j_lt.right = 3'd4; }
+    comb group cond_k { k_lt.left = k.out; k_lt.right = 3'd4; }
+  }
+
+  // for i in range(4):
+  //   for j in range(4):
+  //     for k in range(4):
+  //       C[i][j] += A[i][k] * B[k][j]
+  control {
+    // for i in range(4):
+    seq {
+      init_i;
+      while i_lt.out with cond_i {
+        
+        // for j in range(4):
+        seq {
+          init_j;
+          while j_lt.out with cond_j {
+            
+            // for j in range(4):
+            seq {
+              init_k;
+              while k_lt.out with cond_k {
+                
+                // C[i][j] += A[i][k] * B[k][j]
+                seq {
+                  do_mult;
+                  add_to_c;
+                  incr_k;
+                }
+              }
+              incr_j;
+            }
+          }
+          incr_i;
+        }
+      }
+    }
+  }
+}
