@@ -1,5 +1,6 @@
 use crate::traversal::{Action, Named, VisResult, Visitor};
-use calyx_ir::{self as ir, LibrarySignatures};
+use calyx_ir::{self as ir, CellType, Id, LibrarySignatures};
+use std::collections::HashSet;
 
 #[derive(Default)]
 pub struct WhileToRepeat {}
@@ -47,9 +48,47 @@ impl Visitor for WhileToRepeat {
 
         // 2. Check if the condition can be simplified to a set number of repeats
 
-        // 3. Replace everything as a static repeat loop if possible
+        // TODO: Figure add in check that it is lt, short circuit with continue otherwise
+        //   I need to seperate into lt.left, lt.right, and lt.out and make sure the conditions match perfectly with what I am replacing
 
+        //    Scan the comb group's assignments for the condition that the right side is a constant
+        let mut bound = None;
+        for assign in combGroup.borrow().assignments.iter() {
+            let src = assign.src.borrow();
+            let prototype = src.cell_parent().borrow().prototype.clone();
+
+            // Check to make sure it is a constant on the other port
+            if let CellType::Constant { val, .. } = prototype {
+                bound = Some(val);
+                break;
+            }
+        }
+
+        // Make sure we found a constant bound while extracting the number of repeats
+        let Some(num_repeats) = bound else {
+            return Ok(Action::Continue);
+        };
+
+        // 3. Replace the while loop with static repeat
+        let comb_group_name = combGroup.borrow().name();
+        let body = s.body.take_control();
+
+        // Only keep the comb group that is needed so other passes dont fail
+        comp.comb_groups
+            .retain(|cg| cg.borrow().name() != comb_group_name);
+        Ok(Action::change(ir::Control::repeat(
+            num_repeats,
+            Box::new(body),
+        )))
+    }
+
+    fn finish(
+        &mut self,
+        comp: &mut ir::Component,
+        _sigs: &LibrarySignatures,
+        _comps: &[ir::Component],
+    ) -> VisResult {
+        // Dont need to do the cleaning here because it is handle earlier
         Ok(Action::Continue)
     }
 }
-
